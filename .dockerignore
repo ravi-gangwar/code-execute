@@ -1,0 +1,11 @@
+node_modules
+__tests__
+.github
+.git
+.gitignore
+*.md
+.env
+.env.local
+*.log
+.DS_Store
+
