@@ -1,0 +1,61 @@
+import { v4 as uuidv4 } from "uuid";
+import { runJS } from "../runners/javascript.js";
+import { runPython } from "../runners/python.js";
+import { runLua } from "../runners/lua.js";
+import { runPHP } from "../runners/php.js";
+import { runWasmBinary } from "../runners/wasm.js";
+import type { Request, Response } from "express";
+
+export async function handleRun(req: Request, res: Response) {
+  const id = uuidv4();
+  const body = req.body || {};
+  const langRaw = (body.lang || "").toString().trim().toLowerCase();
+  const code = (body.code || "").toString();
+
+  if (!langRaw || !code) {
+    return res.status(400).json({ id, error: "Missing lang or code" });
+  }
+
+  console.log(`[${id}] run request lang=${langRaw}`);
+
+  let result: any = { error: "unknown" };
+
+  try {
+    switch (langRaw) {
+      case "js":
+      case "javascript":
+        result = await runJS(code, 2000);
+        break;
+      case "python":
+      case "py":
+        result = await runPython(code, 6000);
+        break;
+      case "lua":
+        result = await runLua(code, 3000);
+        break;
+      case "php":
+        result = await runPHP(code, 4000);
+        break;
+      case "wasm":
+      case "c":
+      case "cpp":
+      case "rust":
+      case "go":
+      case "zig":
+      case "java":
+        result = await runWasmBinary(code, 5000);
+        break;
+      default:
+        result = { error: `Language ${langRaw} not supported` };
+    }
+  } catch (err: any) {
+    result = { error: err?.message ?? String(err) };
+  }
+
+  if (result && result.output && typeof result.output === "string" && result.output.length > 20000) {
+    result.output = result.output.slice(0, 20000) + "\n...[truncated]";
+  }
+
+  return res.json({ id, lang: langRaw, ...result });
+}
+

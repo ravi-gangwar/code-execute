@@ -1,0 +1,30 @@
+{
+  "name": "codeeditor-server",
+  "module": "src/index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@jest/globals": "^30.2.0",
+    "@types/bun": "latest",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@types/body-parser": "^1.19.6",
+    "@types/express": "^5.0.5",
+    "body-parser": "^2.2.0",
+    "express": "^5.1.0",
+    "fengari": "^0.1.4",
+    "php-wasm": "^0.0.8",
+    "pyodide": "^0.29.0",
+    "uuid": "^13.0.0",
+    "vm2": "^3.10.0"
+  }
+}
