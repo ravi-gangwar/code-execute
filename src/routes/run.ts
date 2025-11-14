@@ -5,10 +5,11 @@ import { runLua } from "../runners/lua.js";
 import { runPHP } from "../runners/php.js";
 import { runWasmBinary } from "../runners/wasm.js";
 import type { Request, Response } from "express";
+import { SupportedLanguage, type RunRequest, type RunResponse } from "../types/language.js";
 
 export async function handleRun(req: Request, res: Response) {
   const id = uuidv4();
-  const body = req.body || {};
+  const body = req.body as RunRequest || {};
   const langRaw = (body.lang || "").toString().trim().toLowerCase();
   const code = (body.code || "").toString();
 
@@ -18,31 +19,31 @@ export async function handleRun(req: Request, res: Response) {
 
   console.log(`[${id}] run request lang=${langRaw}`);
 
-  let result: any = { error: "unknown" };
+  let result: { output?: string; error?: string } = { error: "unknown" };
 
   try {
     switch (langRaw) {
-      case "js":
-      case "javascript":
+      case SupportedLanguage.JS:
+      case SupportedLanguage.JAVASCRIPT:
         result = await runJS(code, 2000);
         break;
-      case "python":
-      case "py":
+      case SupportedLanguage.PYTHON:
+      case SupportedLanguage.PY:
         result = await runPython(code, 6000);
         break;
-      case "lua":
+      case SupportedLanguage.LUA:
         result = await runLua(code, 3000);
         break;
-      case "php":
+      case SupportedLanguage.PHP:
         result = await runPHP(code, 4000);
         break;
-      case "wasm":
-      case "c":
-      case "cpp":
-      case "rust":
-      case "go":
-      case "zig":
-      case "java":
+      case SupportedLanguage.WASM:
+      case SupportedLanguage.C:
+      case SupportedLanguage.CPP:
+      case SupportedLanguage.RUST:
+      case SupportedLanguage.GO:
+      case SupportedLanguage.ZIG:
+      case SupportedLanguage.JAVA:
         result = await runWasmBinary(code, 5000);
         break;
       default:
@@ -56,6 +57,7 @@ export async function handleRun(req: Request, res: Response) {
     result.output = result.output.slice(0, 20000) + "\n...[truncated]";
   }
 
-  return res.json({ id, lang: langRaw, ...result });
+  const response: RunResponse = { id, lang: langRaw, ...result };
+  return res.json(response);
 }
 
