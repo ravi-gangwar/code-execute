@@ -59,8 +59,21 @@ export async function runPHP(userCode: string, timeoutMs = 4000) {
       php.addEventListener('error', errorHandler);
       
       try {
+        // Clear previous output
+        stdout = "";
+        stderr = "";
+        
+        // Wrap code in PHP tags if not already wrapped
+        let phpCode = userCode.trim();
+        if (!phpCode.startsWith('<?php') && !phpCode.startsWith('<?=') && !phpCode.startsWith('<?')) {
+          phpCode = '<?php ' + phpCode;
+        }
+        
         // Run the PHP code
-        await php.run(userCode);
+        await php.run(phpCode);
+        
+        // Wait a bit for async output to be captured
+        await new Promise(resolve => setTimeout(resolve, 200));
         
         // Build output
         let output = "";
@@ -72,6 +85,11 @@ export async function runPHP(userCode: string, timeoutMs = 4000) {
         }
         if (!output.trim()) {
           output = "Code executed successfully";
+        }
+        
+        // If output is the same as input, something went wrong
+        if (output.trim() === userCode.trim() || output.trim() === phpCode.trim()) {
+          return { error: "PHP code was not executed. Output matches input." };
         }
         
         return { output: output.trim() };

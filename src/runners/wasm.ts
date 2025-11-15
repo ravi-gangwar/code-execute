@@ -15,13 +15,8 @@ function looksLikeSourceCode(input: string): { isSource: boolean; language?: str
   }
   
   // Check for Rust source code
-  if (trimmed.includes("fn main()") || trimmed.includes("use ") && trimmed.includes("::")) {
+  if (trimmed.includes("fn main()") || (trimmed.includes("use ") && trimmed.includes("::"))) {
     return { isSource: true, language: "Rust" };
-  }
-  
-  // Check for Zig source code
-  if (trimmed.includes("const ") && trimmed.includes("pub fn main()")) {
-    return { isSource: true, language: "Zig" };
   }
   
   // Check for Java source code
@@ -150,7 +145,13 @@ export async function runWasmBinary(base64: string, timeoutMs = 3000) {
       return { 
         error: `${sourceCheck.language} source code is not supported directly. ` +
                `Please compile your code to WebAssembly (.wasm) first, then provide the binary as a base64-encoded string. ` +
-               `For ${sourceCheck.language}, you'll need to use the appropriate compiler (e.g., TinyGo for Go, Emscripten for C/C++, etc.)`
+               (sourceCheck.language === "Go"
+                 ? `For Go, use TinyGo: tinygo build -target wasm -o output.wasm yourfile.go`
+                 : sourceCheck.language === "C/C++"
+                 ? `For C/C++, use Emscripten: emcc yourfile.c -o output.wasm`
+                 : sourceCheck.language === "Rust"
+                 ? `For Rust, use: rustc --target wasm32-unknown-unknown yourfile.rs`
+                 : `For ${sourceCheck.language}, you'll need to use the appropriate compiler.`)
       };
     }
     

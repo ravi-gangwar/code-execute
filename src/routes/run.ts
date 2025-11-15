@@ -87,7 +87,6 @@ export async function handleRun(req: Request, res: Response) {
         }
         break;
       case SupportedLanguage.WASM:
-      case SupportedLanguage.ZIG:
         result = await runWasmBinary(code, 5000);
         break;
       default:

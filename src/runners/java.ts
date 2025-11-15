@@ -7,6 +7,25 @@ import { tmpdir } from "os";
 
 const execAsync = promisify(exec);
 
+// Custom exec wrapper that properly captures stderr and stdout
+function execWithOutput(command: string, options: any): Promise<{ stdout: string; stderr: string; code: number | null }> {
+  return new Promise((resolve, reject) => {
+    exec(command, options, (error, stdout, stderr) => {
+      if (error) {
+        // Even if there's an error, we still want to capture stdout and stderr
+        reject({
+          ...error,
+          stdout: stdout || '',
+          stderr: stderr || '',
+          code: error.code || null
+        });
+      } else {
+        resolve({ stdout: stdout || '', stderr: stderr || '', code: 0 });
+      }
+    });
+  });
+}
+
 // Check if Java compiler is available
 async function checkJavaCompiler(): Promise<boolean> {
   try {
@@ -57,7 +76,7 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
         // Write source code to file
         await writeFile(sourceFile, sourceCode, "utf-8");
         
-        // Compile Java code
+        // Compile Java code - use a Promise wrapper to properly capture output
         const compileCommand = `javac "${sourceFile}"`;
         const execOptions: any = {
           timeout: timeoutMs - 3000, // Reserve 3 seconds for execution
@@ -66,32 +85,53 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
           env: { ...process.env }
         };
         
+        let compilationOutput = '';
+        let compilationError = '';
+        let compilationSucceeded = false;
+        
         try {
-          const { stdout, stderr } = await execAsync(compileCommand, execOptions);
+          const result = await execWithOutput(compileCommand, execOptions);
+          compilationOutput = result.stdout.trim();
+          compilationError = result.stderr.trim();
+          compilationSucceeded = result.code === 0;
           
-          // Check for compilation errors
-          if (stderr && stderr.trim()) {
-            const errorMsg = stderr.trim();
+          // Check for compilation errors in stderr
+          if (compilationError && compilationError.trim()) {
+            const errorMsg = compilationError.trim();
             // Warnings are OK, but errors are not
             if (!errorMsg.toLowerCase().includes("warning") && 
-                !errorMsg.toLowerCase().includes("note:")) {
+                !errorMsg.toLowerCase().includes("note:") &&
+                !errorMsg.toLowerCase().includes("deprecated")) {
               return { error: `Compilation error: ${errorMsg}` };
             }
           }
-        } catch (compileError: any) {
-          const errorOutput = compileError.stderr || compileError.stdout || '';
-          const errorMsg = compileError.message || String(compileError);
-          const fullError = errorOutput ? `${errorMsg}\n${errorOutput}` : errorMsg;
-          return { error: `Java compilation failed: ${fullError.trim()}` };
+        } catch (compileErr: any) {
+          // Capture stdout and stderr from the error
+          compilationOutput = (compileErr.stdout || '').toString().trim();
+          compilationError = (compileErr.stderr || '').toString().trim();
+          compilationSucceeded = false;
+          
+          // If we have error output, use it
+          if (!compilationError && compilationOutput) {
+            // Sometimes errors go to stdout
+            compilationError = compilationOutput;
+          }
         }
         
-        // Check if class file was created
+        // Check if class file was created (definitive check)
+        let classFileExists = false;
         try {
           await readFile(classFile);
+          classFileExists = true;
         } catch {
+          classFileExists = false;
+        }
+        
+        // If compilation failed and no class file, return error
+        if (!classFileExists) {
+          const errorDetails = compilationError || compilationOutput || 'No error message available';
           return { 
-            error: `Compilation completed but class file was not created. ` +
-                   `Expected class: ${className}.class`
+            error: `Java compilation failed: ${errorDetails}`
           };
         }
         
@@ -122,9 +162,20 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
           
           return { output: output.trim() };
         } catch (runError: any) {
-          const errorOutput = runError.stderr || runError.stdout || '';
+          // Capture both stderr and stdout for execution errors
+          const stderrOutput = runError.stderr || '';
+          const stdoutOutput = runError.stdout || '';
           const errorMsg = runError.message || String(runError);
-          const fullError = errorOutput ? `${errorMsg}\n${errorOutput}` : errorMsg;
+          
+          // Combine all error information
+          let fullError = errorMsg;
+          if (stderrOutput && stderrOutput.trim()) {
+            fullError += '\n' + stderrOutput.trim();
+          }
+          if (stdoutOutput && stdoutOutput.trim() && !stderrOutput) {
+            fullError += '\n' + stdoutOutput.trim();
+          }
+          
           return { error: `Java execution failed: ${fullError.trim()}` };
         }
       } finally {

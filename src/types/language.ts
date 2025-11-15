@@ -10,7 +10,6 @@ export enum SupportedLanguage {
   CPP = "cpp",
   RUST = "rust",
   GO = "go",
-  ZIG = "zig",
   JAVA = "java",
 }
 
