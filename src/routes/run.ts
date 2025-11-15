@@ -4,6 +4,7 @@ import { runPython } from "../runners/python.js";
 import { runLua } from "../runners/lua.js";
 import { runPHP } from "../runners/php.js";
 import { runWasmBinary } from "../runners/wasm.js";
+import { runGo } from "../runners/go.js";
 import type { Request, Response } from "express";
 import { SupportedLanguage, type RunRequest, type RunResponse } from "../types/language.js";
 
@@ -37,11 +38,19 @@ export async function handleRun(req: Request, res: Response) {
       case SupportedLanguage.PHP:
         result = await runPHP(code, 4000);
         break;
+      case SupportedLanguage.GO:
+        // Check if it's source code or WASM binary
+        const sourceCheck = code.trim();
+        if (sourceCheck.includes("package ") || sourceCheck.includes("import ") || sourceCheck.includes("func main()")) {
+          result = await runGo(code, 10000);
+        } else {
+          result = await runWasmBinary(code, 5000);
+        }
+        break;
       case SupportedLanguage.WASM:
       case SupportedLanguage.C:
       case SupportedLanguage.CPP:
       case SupportedLanguage.RUST:
-      case SupportedLanguage.GO:
       case SupportedLanguage.ZIG:
       case SupportedLanguage.JAVA:
         result = await runWasmBinary(code, 5000);
