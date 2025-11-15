@@ -54,7 +54,7 @@ export async function handleRun(req: Request, res: Response) {
         // Check if it's source code or WASM binary
         const javaSourceCheck = code.trim();
         if (javaSourceCheck.includes("public class") || javaSourceCheck.includes("public static void main")) {
-          result = await runJava(code, 8000);
+          result = await runJava(code, 20000);
         } else {
           result = await runWasmBinary(code, 5000);
         }

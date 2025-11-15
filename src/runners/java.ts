@@ -46,7 +46,7 @@ async function checkJavaRuntime(): Promise<boolean> {
   }
 }
 
-export async function runJava(sourceCode: string, timeoutMs = 8000) {
+export async function runJava(sourceCode: string, timeoutMs = 15000) {
   try {
     const p = (async () => {
       // Check for Java compiler and runtime
@@ -80,7 +80,7 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
         // Use absolute path and set cwd to ensure proper execution
         const compileCommand = `javac "${sourceFile}" 2>&1`;
         const execOptions: any = {
-          timeout: timeoutMs - 3000, // Reserve 3 seconds for execution
+          timeout: timeoutMs - 8000, // Reserve 8 seconds for execution
           cwd: tempDir,
           maxBuffer: 1024 * 1024 * 10, // 10MB buffer
           env: { ...process.env }
@@ -164,10 +164,10 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
           };
         }
         
-        // Execute Java program
-        const runCommand = `java -cp "${tempDir}" ${className}`;
+        // Execute Java program with server mode disabled for faster startup
+        const runCommand = `java -Xshare:off -cp "${tempDir}" ${className}`;
         const runOptions: any = {
-          timeout: 3000, // 3 seconds for execution
+          timeout: 8000, // 8 seconds for execution (Java can be slow to start)
           cwd: tempDir,
           maxBuffer: 1024 * 1024 * 10, // 10MB buffer
           env: { ...process.env }
