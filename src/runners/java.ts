@@ -76,8 +76,9 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
         // Write source code to file
         await writeFile(sourceFile, sourceCode, "utf-8");
         
-        // Compile Java code - use a Promise wrapper to properly capture output
-        const compileCommand = `javac "${sourceFile}"`;
+        // Compile Java code - redirect both stdout and stderr to capture all output
+        // Use absolute path and set cwd to ensure proper execution
+        const compileCommand = `javac "${sourceFile}" 2>&1`;
         const execOptions: any = {
           timeout: timeoutMs - 3000, // Reserve 3 seconds for execution
           cwd: tempDir,
@@ -95,14 +96,16 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
           compilationError = result.stderr.trim();
           compilationSucceeded = result.code === 0;
           
-          // Check for compilation errors in stderr
-          if (compilationError && compilationError.trim()) {
-            const errorMsg = compilationError.trim();
-            // Warnings are OK, but errors are not
-            if (!errorMsg.toLowerCase().includes("warning") && 
-                !errorMsg.toLowerCase().includes("note:") &&
-                !errorMsg.toLowerCase().includes("deprecated")) {
-              return { error: `Compilation error: ${errorMsg}` };
+          // javac outputs errors to stderr, but we redirected to stdout, so check both
+          const allOutput = (compilationOutput + '\n' + compilationError).trim();
+          
+          // Check for compilation errors
+          if (allOutput && compilationSucceeded === false) {
+            // If compilation failed, the output should contain error messages
+            if (allOutput.toLowerCase().includes("error") || 
+                allOutput.toLowerCase().includes("exception") ||
+                !allOutput.toLowerCase().includes("warning")) {
+              compilationError = allOutput;
             }
           }
         } catch (compileErr: any) {
@@ -111,10 +114,21 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
           compilationError = (compileErr.stderr || '').toString().trim();
           compilationSucceeded = false;
           
-          // If we have error output, use it
-          if (!compilationError && compilationOutput) {
-            // Sometimes errors go to stdout
-            compilationError = compilationOutput;
+          // Combine both outputs since we redirected stderr to stdout
+          const combinedOutput = (compilationOutput + '\n' + compilationError).trim();
+          if (combinedOutput) {
+            compilationError = combinedOutput;
+          }
+          
+          // If still no error message, try to get more details from the error object
+          if (!compilationError) {
+            const errorString = String(compileErr);
+            const errorMessage = compileErr.message || '';
+            if (errorString && errorString !== '[object Object]') {
+              compilationError = errorString;
+            } else if (errorMessage) {
+              compilationError = errorMessage;
+            }
           }
         }
         
@@ -127,9 +141,24 @@ export async function runJava(sourceCode: string, timeoutMs = 8000) {
           classFileExists = false;
         }
         
-        // If compilation failed and no class file, return error
+        // If compilation failed and no class file, return error with more context
         if (!classFileExists) {
-          const errorDetails = compilationError || compilationOutput || 'No error message available';
+          let errorDetails = compilationError || compilationOutput;
+          
+          // If we still don't have error details, provide more context
+          if (!errorDetails || errorDetails === 'No error message available') {
+            // Try to verify javac is accessible
+            try {
+              const javacCheck = await execAsync('javac -version 2>&1', { timeout: 2000 });
+              errorDetails = `Compilation failed but no error output captured. ` +
+                           `Java compiler is available (${javacCheck.stdout || javacCheck.stderr || 'version check passed'}). ` +
+                           `Source file: ${sourceFile}, Expected class: ${className}.class`;
+            } catch (checkErr: any) {
+              errorDetails = `Compilation failed and javac may not be accessible. ` +
+                           `Source file: ${sourceFile}, Expected class: ${className}.class`;
+            }
+          }
+          
           return { 
             error: `Java compilation failed: ${errorDetails}`
           };
