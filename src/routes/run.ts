@@ -5,6 +5,9 @@ import { runLua } from "../runners/lua.js";
 import { runPHP } from "../runners/php.js";
 import { runWasmBinary } from "../runners/wasm.js";
 import { runGo } from "../runners/go.js";
+import { runJava } from "../runners/java.js";
+import { runRust } from "../runners/rust.js";
+import { runCpp } from "../runners/cpp.js";
 import type { Request, Response } from "express";
 import { SupportedLanguage, type RunRequest, type RunResponse } from "../types/language.js";
 
@@ -47,12 +50,44 @@ export async function handleRun(req: Request, res: Response) {
           result = await runWasmBinary(code, 5000);
         }
         break;
-      case SupportedLanguage.WASM:
-      case SupportedLanguage.C:
-      case SupportedLanguage.CPP:
-      case SupportedLanguage.RUST:
-      case SupportedLanguage.ZIG:
       case SupportedLanguage.JAVA:
+        // Check if it's source code or WASM binary
+        const javaSourceCheck = code.trim();
+        if (javaSourceCheck.includes("public class") || javaSourceCheck.includes("public static void main")) {
+          result = await runJava(code, 8000);
+        } else {
+          result = await runWasmBinary(code, 5000);
+        }
+        break;
+      case SupportedLanguage.RUST:
+        // Check if it's source code or WASM binary
+        const rustSourceCheck = code.trim();
+        if (rustSourceCheck.includes("fn main()") || rustSourceCheck.includes("use ") && rustSourceCheck.includes("::")) {
+          result = await runRust(code, 10000);
+        } else {
+          result = await runWasmBinary(code, 5000);
+        }
+        break;
+      case SupportedLanguage.CPP:
+        // Check if it's source code or WASM binary
+        const cppSourceCheck = code.trim();
+        if (cppSourceCheck.includes("#include") || cppSourceCheck.match(/^\s*(int|void|char|float|double)\s+main\s*\(/)) {
+          result = await runCpp(code, 10000);
+        } else {
+          result = await runWasmBinary(code, 5000);
+        }
+        break;
+      case SupportedLanguage.C:
+        // C code can also use the C++ runner (C++ compilers can compile C)
+        const cSourceCheck = code.trim();
+        if (cSourceCheck.includes("#include") || cSourceCheck.match(/^\s*(int|void|char|float|double)\s+main\s*\(/)) {
+          result = await runCpp(code, 10000);
+        } else {
+          result = await runWasmBinary(code, 5000);
+        }
+        break;
+      case SupportedLanguage.WASM:
+      case SupportedLanguage.ZIG:
         result = await runWasmBinary(code, 5000);
         break;
       default:
