@@ -35,10 +35,11 @@ RUN rustc --version && \
     tinygo version
 
 # Copy package files
-COPY package.json bun.lock ./
+COPY package.json ./
 
 # Install dependencies
-RUN bun install --frozen-lockfile --production
+# Install without frozen lockfile to allow lockfile regeneration if needed
+RUN bun install --production
 
 # Copy source code
 COPY tsconfig.json ./
